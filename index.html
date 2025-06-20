@@ -4,7 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zé Faísca: Batalha Celestial</title>
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <!-- 
+      FAVICON: 
+      For this to work on GitHub Pages (e.g., /zefaisca/favicon.ico):
+      1. Place your 'favicon.ico' file in your 'public' folder.
+      2. Ensure your Vite config (vite.config.js or .ts) has `base: '/zefaisca/'`.
+    -->
+    <link rel="icon" href="./favicon.ico">
+    <!-- 
+      TAILWIND CSS: 
+      The Tailwind CDN script has been removed as it's not recommended for production.
+      Ensure Tailwind CSS is installed and configured as part of your build process 
+      (e.g., via PostCSS in vite.config.js). If not, styles might be missing.
+      Docs: https://tailwindcss.com/docs/installation
+    -->
     <style>
       body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a202c; color: #e2e8f0; }
       #root { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -66,8 +79,6 @@
 
     </style>
 
-<link rel="stylesheet" href="/zefaisca/assets/index-C6G_3qQV.css">
-<link rel="icon" href="/zefaisca/favicon.ico">
   <script type="importmap">
 {
   "imports": {
@@ -75,14 +86,25 @@
     "react": "https://esm.sh/react@^19.1.0",
     "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
     "@google/genai": "https://esm.sh/@google/genai@^1.5.1",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "vite": "https://esm.sh/vite@^6.3.5",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.5.2"
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-G6xwlA06.js"></script>
+  <script type="module" crossorigin src="/zefaisca/assets/index-CTHGPqj6.js"></script>
+  <link rel="stylesheet" crossorigin href="/zefaisca/assets/index-C6G_3qQV.css">
 </head>
   <body>
     <noscript>Você precisa habilitar o JavaScript para rodar este aplicativo.</noscript>
     <div id="root"></div>
-  </body>
+    <!--
+      MAIN SCRIPT:
+      This path is relative to this HTML file.
+      Your build tool (e.g., Vite) will process this and inject the bundled script(s)
+      into the generated index.html in your 'dist' folder.
+      For correct paths on GitHub Pages (e.g., /zefaisca/assets/index-XXXX.js):
+      1. Ensure your Vite config (vite.config.js or .ts) has `base: '/zefaisca/'`.
+    -->
+</body>
 </html>
