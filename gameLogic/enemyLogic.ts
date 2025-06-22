@@ -677,21 +677,23 @@ export const applyPlayerProjectileDamageToEnemies = (
     });
 
     const updatedEnemies = enemies.map(enemy => {
-        if (!damageMap.has(enemy.id) || enemy.isDying) return enemy; // Don't process already dying enemies further for HP
+        if (!damageMap.has(enemy.id) || enemy.isDying) return enemy; 
         
         const { totalDamage, critHits, originalData, firstHitPos } = damageMap.get(enemy.id)!;
         
-        // Only apply damage if enemy was alive before this damage batch
         if (enemy.hp <= 0) return enemy; 
 
         const newHp = enemy.hp - totalDamage;
         addFloatingText( Math.ceil(totalDamage).toString(), originalData.x + originalData.width / 2, originalData.y, critHits > 0 ? '#FFD700' : '#FFFFFF', critHits > 0 );
         spawnParticleEffect(firstHitPos.x, firstHitPos.y, 'projectile_impact');
 
-        if (Math.floor(newHp) <= 0) { // Enemy defeated by this batch of projectiles
+        if (Math.floor(newHp) <= 0) { 
             newlyDefeatedEnemyData.push(originalData);
+            
+            // Use originalData.type for the check, as it's the type of the enemy when it was hit.
+            const enemyTypeForDeathLogic = originalData.type as EnemyType;
 
-            if (enemy.type === 'slime') {
+            if (enemyTypeForDeathLogic === 'slime') {
                 return {
                     ...enemy,
                     hp: 0, 
@@ -707,32 +709,31 @@ export const applyPlayerProjectileDamageToEnemies = (
                 };
             } else {
                 spawnParticleEffect(originalData.x + originalData.width/2, originalData.y + originalData.height/2, 'enemy_death');
-                audioManager.playSound(enemy.isBoss ? 'boss_death' : 'enemy_death_generic');
-                if (playerStats.ownedUpgrades['conversor_entropico'] && Math.random() < ENTROPIC_FRAGMENT_DROP_CHANCE && !enemy.isBoss) {
+                audioManager.playSound(originalData.isBoss ? 'boss_death' : 'enemy_death_generic');
+                if (playerStats.ownedUpgrades['conversor_entropico'] && Math.random() < ENTROPIC_FRAGMENT_DROP_CHANCE && !originalData.isBoss) {
                    spawnEntropicFragmentCallback(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2);
                 }
-                if (!enemy.isBoss && Math.random() < playerStats.healOrbChance) {
+                if (!originalData.isBoss && Math.random() < playerStats.healOrbChance) {
                     spawnOrbCallback(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2);
                 }
-                 // Enemy Shrapnel Logic for non-slime, non-boss enemies
-                if (playerStats.enemyShrapnel.enabled && !enemy.isBoss && enemy.type !== 'slime') {
+                if (playerStats.enemyShrapnel.enabled && !originalData.isBoss && originalData.type !== 'slime') {
                     for (let i = 0; i < playerStats.enemyShrapnel.count; i++) {
                         const angle = Math.random() * Math.PI * 2;
-                        const speed = BASE_PLAYER_PROJECTILE_SPEED * 0.5; // Shrapnel is slower
+                        const speed = BASE_PLAYER_PROJECTILE_SPEED * 0.5; 
                         spawnAdditionalProjectile({
                             x: originalData.x + originalData.width / 2,
                             y: originalData.y + originalData.height / 2,
-                            width: 6, height: 6, // Smaller shrapnel
+                            width: 6, height: 6, 
                             vx: Math.cos(angle) * speed,
                             vy: Math.sin(angle) * speed,
                             damage: playerStats.baseProjectileDamage * playerStats.enemyShrapnel.damageMultiplier,
                             isPlayerProjectile: true,
-                            color: '#A9A9A9', // DarkGray
+                            color: '#A9A9A9', 
                             visualType: 'shrapnel',
-                            staffId: 'shrapnel_ability', // Generic ID
-                            originalShooterId: playerStats.level.toString(), // Can use player ID or level
+                            staffId: 'shrapnel_ability', 
+                            originalShooterId: playerStats.level.toString(), 
                             pierceLeft: 0,
-                            explodesOnImpact: false, // Shrapnel itself doesn't typically explode again unless specified
+                            explodesOnImpact: false, 
                         });
                     }
                 }
@@ -766,8 +767,8 @@ export const applyAoeDamageToEnemies = (
     
     effectsDealingDamageThisTick.forEach(effect => {
         enemies.forEach(enemy => {
-            if (enemy.isDying) return; // Don't damage already dying enemies
-            if (enemy.hp <= 0 && enemy.type !== 'slime') return; // Already dead (non-slimes)
+            if (enemy.isDying) return; 
+            if (enemy.hp <= 0 && enemy.type !== 'slime') return; 
 
             const enemyCenterX = enemy.x + enemy.width / 2;
             const enemyCenterY = enemy.y + enemy.height / 2;
@@ -784,10 +785,7 @@ export const applyAoeDamageToEnemies = (
 
             if (hit && effect.damage && (!effect.hitEnemyIds || !effect.hitEnemyIds.has(enemy.id))) {
                  if (enemy.hp <= 0 && enemy.type === 'slime' && !enemy.isDying) {
-                    // This slime's HP is already 0 but it's not yet in 'isDying' state.
-                    // This can happen if a projectile killed it and an AOE hits in the same tick.
-                    // We should still mark it as hit by the AOE for effects but not double-count damage leading to negative HP.
-                } else if (enemy.hp > 0) { // Only apply damage if HP > 0
+                } else if (enemy.hp > 0) { 
                     const damageDealt = effect.damage;
                     const currentEnemyDamage = damageMap.get(enemy.id) || { totalDamage: 0, originalData: JSON.parse(JSON.stringify(enemy)) };
                     currentEnemyDamage.totalDamage += damageDealt;
@@ -800,13 +798,11 @@ export const applyAoeDamageToEnemies = (
 
     const updatedEnemies = enemies.map(enemy => {
         if (!damageMap.has(enemy.id) || enemy.isDying ) return enemy;
-        if (enemy.hp <= 0 && enemy.type !== 'slime') return enemy; // Already dead non-slime
+        if (enemy.hp <= 0 && enemy.type !== 'slime') return enemy; 
 
         const { totalDamage, originalData } = damageMap.get(enemy.id)!;
-         if (enemy.hp <= 0 && enemy.type === 'slime') { // Slime HP is 0, but not dying yet - skip damage, but can be set to dying
-            if (Math.floor(totalDamage) > 0 && !enemy.isDying) { //If AOE damage is significant and it wasn't already dying
-                // This case should be rare if projectile damage already set it to dying
-                // but if an AOE is the first to "kill" it this tick
+         if (enemy.hp <= 0 && enemy.type === 'slime') { 
+            if (Math.floor(totalDamage) > 0 && !enemy.isDying) { 
                 newlyDefeatedEnemyData.push(originalData);
                  return { 
                     ...enemy, 
@@ -822,17 +818,18 @@ export const applyAoeDamageToEnemies = (
                     speed: 0 
                 };
             }
-            return enemy; // No HP change if already at 0
+            return enemy; 
         }
 
 
         const newHp = enemy.hp - totalDamage;
         addFloatingText(Math.ceil(totalDamage).toString(), originalData.x + originalData.width / 2, originalData.y, '#FFA500'); 
 
-        if (Math.floor(newHp) <= 0) { // Enemy defeated by this AOE
+        if (Math.floor(newHp) <= 0) { 
             newlyDefeatedEnemyData.push(originalData);
+            const enemyTypeForDeathLogic = originalData.type as EnemyType;
 
-            if (originalData.type === 'slime') { // Use originalData.type for consistency
+            if (enemyTypeForDeathLogic === 'slime') { 
                 return { 
                     ...enemy, 
                     hp: 0, 
@@ -848,11 +845,11 @@ export const applyAoeDamageToEnemies = (
                 };
             } else {
                 spawnParticleEffect(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2, 'enemy_death');
-                audioManager.playSound(enemy.isBoss ? 'boss_death' : 'enemy_death_generic');
-                 if (playerStats.ownedUpgrades['conversor_entropico'] && Math.random() < ENTROPIC_FRAGMENT_DROP_CHANCE && !enemy.isBoss) {
+                audioManager.playSound(originalData.isBoss ? 'boss_death' : 'enemy_death_generic');
+                 if (playerStats.ownedUpgrades['conversor_entropico'] && Math.random() < ENTROPIC_FRAGMENT_DROP_CHANCE && !originalData.isBoss) {
                    spawnEntropicFragmentCallback(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2);
                 }
-                if (!enemy.isBoss && Math.random() < playerStats.healOrbChance) {
+                if (!originalData.isBoss && Math.random() < playerStats.healOrbChance) {
                     spawnOrbCallback(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2);
                 }
                 return { ...enemy, hp: 0 };
