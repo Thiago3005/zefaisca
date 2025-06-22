@@ -1,25 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zé Faísca: Batalha Celestial</title>
-    <!-- 
-      FAVICON: 
-      A referência ao favicon.ico foi removida para evitar o erro 404 de uma tag de link quebrada.
-      O navegador ainda pode tentar buscar /favicon.ico por padrão (o que causa o 404 que você vê, e é inofensivo). 
-      Se desejar adicionar um favicon no futuro:
-      1. Coloque seu arquivo 'favicon.ico' na pasta 'public'.
-      2. Adicione a linha: <link rel="icon" href="./favicon.ico"> (ou o caminho correto).
-      3. Certifique-se de que sua configuração do Vite (vite.config.js) está correta com `base: '/zefaisca/'`.
-    -->
-    <!-- 
-      TAILWIND CSS: 
-      O script do Tailwind CDN foi removido, pois não é recomendado para produção.
-      Certifique-se de que o Tailwind CSS esteja instalado e configurado como parte do seu processo de build 
-      (ex: via PostCSS no vite.config.js). Caso contrário, os estilos podem estar ausentes.
-      Docs: https://tailwindcss.com/docs/installation
-    -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a202c; color: #e2e8f0; }
       #root { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -81,19 +67,19 @@
 
     </style>
 
-<script type="importmap">
+<link rel="stylesheet" href="/index.css">
+  <script type="importmap">
 {
   "imports": {
     "react/": "https://esm.sh/react@^19.1.0/",
     "react": "https://esm.sh/react@^19.1.0",
     "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.50.0",
-    "vite": "https://esm.sh/vite@^6.3.5",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.5.2"
+    "@google/genai": "https://esm.sh/@google/genai@^1.5.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
   }
 }
 </script>
-  <script type="module" crossorigin src="/zefaisca/assets/index-B-7GABfE.js"></script>
+  <script type="module" crossorigin src="/assets/index-DKdpNNm1.js"></script>
 </head>
   <body>
     <noscript>Você precisa habilitar o JavaScript para rodar este aplicativo.</noscript>
