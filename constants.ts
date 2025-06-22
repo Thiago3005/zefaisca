@@ -37,10 +37,10 @@ export const PLAYER_ANIMATION_CONFIG = {
   }
 };
 
-export const SLIME_SPRITE_NATIVE_WIDTH = 32;
-export const SLIME_SPRITE_NATIVE_HEIGHT = 32;
-export const SLIME_DISPLAY_WIDTH = 48;
-export const SLIME_DISPLAY_HEIGHT = 48;
+export const SLIME_SPRITE_NATIVE_WIDTH = 24;
+export const SLIME_SPRITE_NATIVE_HEIGHT = 24;
+export const SLIME_DISPLAY_WIDTH = 24;
+export const SLIME_DISPLAY_HEIGHT = 24;
 
 export const SLIME_ANIMATION_CONFIG = {
   idle: {
