@@ -9,7 +9,7 @@ export const PLAYER_JUMP_FORCE = 750;
 export const PLAYER_MAX_JUMPS_DEFAULT = 1;
 
 // Sprite Sheet and Animation Constants
-export const SPRITE_SHEET_URL = '/Assets/AnimationSheet_Character.png';
+export const SPRITE_SHEET_URL = 'Assets/AnimationSheet_Character.png';
 export const SPRITE_FRAME_WIDTH = 32;
 export const SPRITE_FRAME_HEIGHT = 32;
 
@@ -44,21 +44,21 @@ export const SLIME_DISPLAY_HEIGHT = 48;
 
 export const SLIME_ANIMATION_CONFIG = {
   idle: {
-    spriteSheetUrl: '/Assets/slime_idle.png',
+    spriteSheetUrl: 'Assets/slime_idle.png',
     frames: 4,
     frameRate: 200, // ms per frame
     totalColumns: 4,
     loops: true,
   },
   run: {
-    spriteSheetUrl: '/Assets/slime_run.png',
+    spriteSheetUrl: 'Assets/slime_run.png',
     frames: 6,
     frameRate: 150,
     totalColumns: 6,
     loops: true,
   },
   die: {
-    spriteSheetUrl: '/Assets/slime_die.png',
+    spriteSheetUrl: 'Assets/slime_die.png',
     frames: 5,
     frameRate: 180,
     totalColumns: 5,
