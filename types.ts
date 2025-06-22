@@ -119,7 +119,6 @@ export interface PlayerStats {
 
   // NEW STATS FOR CHAOTIC UPGRADES (from user prompt)
   absorbentHealOnInvulnHit?: boolean;
-  // Anti-Aircraft: modifies explosion radius of projectiles from "Friction" upgrade, logic in GameView
   avenger?: {
     enabled: boolean;
     cooldownWavesLeft: number;
@@ -201,6 +200,17 @@ export interface PlayerStats {
     radius: number;
   };
   invulnerabilityDuration?: number; // Duration of invulnerability after taking damage
+
+  // Friction upgrade stats
+  frictionStats: {
+    enabled: boolean;
+    distancePerProjectile: number; // pixels
+    projectilesPerActivation: number;
+    projectileDamage: number;
+    explosionRadius: number;
+    distanceRunSinceLastActivation: number;
+  };
+  antiAircraftFrictionRadiusMultiplier: number; // Multiplier for friction explosion radius from Anti-Aéreo
 }
 
 
@@ -260,7 +270,8 @@ export type ProjectileVisualType =
   | 'boss_beam_segment'
   | 'ufo_projectile'
   | 'alien_spit'
-  | 'wisp_bolt'; // For Will-O-Wisp
+  | 'wisp_bolt' // For Will-O-Wisp
+  | 'friction_spark'; // For Friction upgrade
 
 export interface GameObject {
   id: string;
@@ -397,6 +408,8 @@ export interface Projectile extends GameObject {
   pierceLeft?: number;
   isPipocaSoulFragment?: boolean; // For Alma do Cajado (Pipoca)
   pacManDamageBonus?: number; // For Pac-Man upgrade
+  explodesOnImpact?: boolean; // Added for generic projectile explosions
+  explosionRadius?: number;   // Added for generic projectile explosions
 }
 
 export interface HealingOrb extends GameObject {
@@ -558,7 +571,8 @@ export type SoundEffectKey =
   | 'black_hole_form' // New
   | 'streamer_beam_start' // New
   | 'streamer_beam_loop' // New
-  | 'streamer_beam_end'; // New
+  | 'streamer_beam_end' // New
+  | 'friction_projectile_launch'; // New
   
 // Define a structure for upgrades that grant stacks of other upgrades
 export interface StackGrant {

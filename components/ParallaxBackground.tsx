@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GAME_WIDTH, GAME_HEIGHT } from '../constants';
 
 interface ParallaxBackgroundProps {
@@ -9,20 +9,22 @@ interface ParallaxBackgroundProps {
 interface ParallaxLayerElement {
   id: string;
   type: 'nebula' | 'planet' | 'mountains' | 'debris';
-  initialX: number; 
+  initialX: number;
   y: number;
-  size?: number; 
-  color?: string;
+  size?: number;
+  color?: string; // Base color for planets
+  atmosphereColor?: string; // Color for planet atmosphere glow
   opacity?: number;
-  pathData?: string; 
-  blur?: number; 
-  width?: number; 
-  height?: number; 
+  pathData?: string;
+  blur?: number;
+  width?: number;
+  height?: number;
 }
 
 interface ParallaxLayerDef {
   id: string;
-  speed: number; 
+  speed: number; // Speed relative to camera movement
+  driftFactor: number; // Factor for autonomous horizontal drift
   elements: ParallaxLayerElement[];
   zIndex: number;
 }
@@ -30,32 +32,105 @@ interface ParallaxLayerDef {
 const layers: ParallaxLayerDef[] = [
   {
     id: 'layer1-nebulas',
-    speed: 0.05,
-    zIndex: 1, // Alterado de -3 para 1
+    speed: 0.005, 
+    driftFactor: 0.02, 
+    zIndex: 1,
     elements: [
-      { id: 'neb1', type: 'nebula', initialX: GAME_WIDTH * 0.2, y: GAME_HEIGHT * 0.3, size: GAME_WIDTH * 0.8, color: 'rgba(50, 30, 80, 0.35)', blur: 30, width: GAME_WIDTH * 1.5, height: GAME_HEIGHT * 0.6 }, // Slightly brighter nebula
-      { id: 'neb2', type: 'nebula', initialX: GAME_WIDTH * 0.8, y: GAME_HEIGHT * 0.6, size: GAME_WIDTH * 0.7, color: 'rgba(30, 30, 60, 0.3)', blur: 40, width: GAME_WIDTH * 1.2, height: GAME_HEIGHT * 0.5 },
-      { id: 'neb3', type: 'nebula', initialX: GAME_WIDTH * 1.5, y: GAME_HEIGHT * 0.4, size: GAME_WIDTH * 0.9, color: 'rgba(40, 20, 70, 0.25)', blur: 35, width: GAME_WIDTH * 1.6, height: GAME_HEIGHT * 0.7 },
+      { id: 'neb1', type: 'nebula', initialX: GAME_WIDTH * 0.2, y: GAME_HEIGHT * 0.3, size: GAME_WIDTH * 0.8, color: 'rgba(60, 40, 90, 0.3)', blur: 30, width: GAME_WIDTH * 1.5, height: GAME_HEIGHT * 0.6 },
+      { id: 'neb2', type: 'nebula', initialX: GAME_WIDTH * 0.8, y: GAME_HEIGHT * 0.6, size: GAME_WIDTH * 0.7, color: 'rgba(40, 40, 70, 0.25)', blur: 40, width: GAME_WIDTH * 1.2, height: GAME_HEIGHT * 0.5 },
+      { id: 'neb3', type: 'nebula', initialX: GAME_WIDTH * 1.5, y: GAME_HEIGHT * 0.4, size: GAME_WIDTH * 0.9, color: 'rgba(50, 30, 80, 0.2)', blur: 35, width: GAME_WIDTH * 1.6, height: GAME_HEIGHT * 0.7 },
     ],
   },
   {
     id: 'layer2-distant-planets',
-    speed: 0.15,
-    zIndex: 2, // Alterado de -2 para 2
+    speed: 0.01, 
+    driftFactor: 0.03, 
+    zIndex: 2,
     elements: [
-      { id: 'planet1', type: 'planet', initialX: GAME_WIDTH * 0.7, y: GAME_HEIGHT * 0.25, size: 120, color: '#3f3552', opacity: 0.9 }, 
-      { id: 'planet2', type: 'planet', initialX: GAME_WIDTH * 0.1, y: GAME_HEIGHT * 0.4, size: 80, color: '#4a2a38', opacity: 0.8 },  
-      { id: 'planet3', type: 'planet', initialX: GAME_WIDTH * 1.3, y: GAME_HEIGHT * 0.3, size: 150, color: '#283040', opacity: 0.85 }, 
+      { id: 'planet1', type: 'planet', initialX: GAME_WIDTH * 0.7, y: GAME_HEIGHT * 0.25, size: 120, color: '#5a4a70', atmosphereColor: '#a78bfa', opacity: 0.6 },
+      { id: 'planet2', type: 'planet', initialX: GAME_WIDTH * 0.1, y: GAME_HEIGHT * 0.45, size: 80, color: '#78352a', atmosphereColor: '#fca5a5', opacity: 0.55 },
+      { id: 'planet3', type: 'planet', initialX: GAME_WIDTH * 1.3, y: GAME_HEIGHT * 0.35, size: 150, color: '#3c5a6d', atmosphereColor: '#67e8f9', opacity: 0.58 },
     ],
   },
 ];
 
+// Helper to darken/lighten a hex color
+const shadeColor = (color: string, percent: number): string => {
+    let R = parseInt(color.substring(1,3),16);
+    let G = parseInt(color.substring(3,5),16);
+    let B = parseInt(color.substring(5,7),16);
+
+    R = parseInt((R * (100 + percent) / 100).toString());
+    G = parseInt((G * (100 + percent) / 100).toString());
+    B = parseInt((B * (100 + percent) / 100).toString());
+
+    R = (R<255)?R:255;  
+    G = (G<255)?G:255;  
+    B = (B<255)?B:255;  
+
+    R = Math.max(0, R);
+    G = Math.max(0, G);
+    B = Math.max(0, B);
+
+    const RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
+    const GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
+    const BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+
+    return "#"+RR+GG+BB;
+}
+
+const getPlanetStyle = (el: ParallaxLayerElement): React.CSSProperties => {
+  const baseColor = el.color || '#555';
+  // Use a slightly lighter/more vibrant version of baseColor for atmosphere if atmosphereColor isn't specified
+  const atmosBase = el.atmosphereColor || shadeColor(baseColor, 15); 
+  const size = el.size || 100;
+
+  // Simulating texture and depth with multiple radial gradients
+  // Highlights made more subtle (lower alpha)
+  const backgroundStyle = `
+    radial-gradient(circle at 20% 25%, rgba(255,255,255,0.06) 0%, transparent ${size * 0.15}px),
+    radial-gradient(circle at 25% 20%, rgba(255,255,255,0.04) 0%, transparent ${size * 0.1}px),
+    radial-gradient(ellipse at 70% 75%, ${baseColor} 0%, ${shadeColor(baseColor, -30)} 100%)
+  `;
+  
+  // Atmosphere in box-shadow made more diffuse (larger blur, larger spread) and more transparent (lower alpha hex like '66' and '33')
+  return {
+    width: size,
+    height: size,
+    background: backgroundStyle,
+    borderRadius: '50%',
+    boxShadow: `
+      inset ${size * 0.08}px ${size * 0.08}px ${size * 0.15}px rgba(0,0,0,0.15), 
+      inset -${size * 0.03}px -${size * 0.03}px ${size * 0.1}px rgba(255,255,255,0.03),
+      0 0 ${size * 0.25}px ${size * 0.08}px ${atmosBase}77,
+      0 0 ${size * 0.5}px ${size * 0.15}px ${atmosBase}44
+    `,
+    opacity: el.opacity || 0.7, // Default element opacity if not specified in layer definition
+  };
+};
+
 
 const ParallaxBackground: React.FC<ParallaxBackgroundProps> = ({ cameraX }) => {
+  const [driftOffset, setDriftOffset] = useState(0);
+
+  useEffect(() => {
+    let lastTime = performance.now();
+    let animationFrameId: number;
+    const updateDrift = (currentTime: number) => {
+      const deltaTime = (currentTime - lastTime) / 1000; 
+      const baseDriftSpeed = 0.8; // Reduced global drift further
+      setDriftOffset(prev => prev + deltaTime * baseDriftSpeed);
+      lastTime = currentTime;
+      animationFrameId = requestAnimationFrame(updateDrift);
+    };
+    animationFrameId = requestAnimationFrame(updateDrift);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
   return (
-    <div 
-        className="absolute inset-0 overflow-hidden pointer-events-none" 
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0)' }} // Debug: temp background for the whole parallax container, set to transparent for final
+    <div
+      className="absolute inset-0 overflow-hidden pointer-events-none"
+      style={{ backgroundColor: 'transparent' }}
     >
       {layers.map(layer => (
         <div
@@ -64,93 +139,49 @@ const ParallaxBackground: React.FC<ParallaxBackgroundProps> = ({ cameraX }) => {
           style={{ zIndex: layer.zIndex }}
         >
           {layer.elements.map(el => {
-            const visualWidth = el.width || el.size || 0; // The width of the visual element itself
-            const visualHeight = el.height || el.size || 0; // The height for y-centering if needed
-
-            // The loopWidth determines the range over which the element's position will cycle.
-            // Using GAME_WIDTH + visualWidth ensures the element fully leaves one side before reappearing on the other.
+            const visualWidth = el.width || el.size || 0;
             const loopWidth = GAME_WIDTH + visualWidth;
             
-            const currentBaseX = el.initialX - cameraX * layer.speed;
+            const currentBaseX = el.initialX - cameraX * layer.speed - driftOffset * layer.driftFactor;
             
-            // Calculate the intended center position of the element within the loop.
             let xPosCenter = (currentBaseX % loopWidth + loopWidth) % loopWidth;
-             // If initialX was meant to be the left edge, adjust xPosCenter to be the center
-            if(el.type !== 'nebula' && el.type !== 'planet') { // Assuming initialX for mountains etc. might be left edge based
-                 // No, stick to initialX being the reference point for the center calculation strategy
-            }
 
-
-            let transform = '';
-            if (el.type === 'nebula' || el.type === 'planet') {
-              transform = `translate(-50%, -50%)`; // Nebulas and planets are centered around their (xPosCenter, el.y)
-            } else if (el.type === 'mountains') {
-              transform = `translateX(-50%)`; // Mountains are centered horizontally, el.y is their top
+            if (xPosCenter + visualWidth / 2 < 0) {
+                xPosCenter += loopWidth;
+            } 
+            else if (xPosCenter - visualWidth / 2 > GAME_WIDTH) {
+                xPosCenter -= loopWidth;
             }
             
-            // For elements that are not full-width patterns and should repeat by moving off one side and onto the other
-            if (visualWidth < GAME_WIDTH * 0.8) { // Heuristic: smaller elements clearly repeat
-                 // If xPosCenter (calculated center) + visualWidth/2 < 0, it means it's fully off-screen left. Add loopWidth.
-                 if(xPosCenter + visualWidth / 2 < 0) xPosCenter += loopWidth;
-                 // If xPosCenter (calculated center) - visualWidth/2 > GAME_WIDTH, fully off-screen right. Subtract loopWidth.
-                 else if(xPosCenter - visualWidth / 2 > GAME_WIDTH) xPosCenter -= loopWidth;
-            }
-
+            let elementStyle: React.CSSProperties = {
+              position: 'absolute',
+              left: xPosCenter,
+              top: el.y,
+              transform: 'translate(-50%, -50%)', 
+            };
 
             if (el.type === 'nebula') {
-              return (
-                <div
-                  key={el.id}
-                  className="absolute" // Removed rounded-full to use width/height for shape
-                  style={{
-                    left: xPosCenter,
-                    top: el.y,
-                    width: el.width || el.size,
-                    height: el.height || el.size,
-                    backgroundColor: el.color,
-                    borderRadius: (el.width || el.size || 0) / 2, // Elliptical nebulas via border-radius
-                    filter: `blur(${el.blur || 20}px)`,
-                    opacity: el.opacity || 1,
-                    transform: transform,
-                  }}
-                />
-              );
+              elementStyle = {
+                ...elementStyle,
+                width: el.width || el.size,
+                height: el.height || el.size,
+                backgroundColor: el.color,
+                borderRadius: '50%', 
+                filter: `blur(${el.blur || 20}px) opacity(${el.opacity || 0.7})`,
+              };
             } else if (el.type === 'planet') {
-              return (
-                <div
-                  key={el.id}
-                  className="absolute rounded-full"
-                  style={{
-                    left: xPosCenter,
-                    top: el.y,
-                    width: el.size,
-                    height: el.size,
-                    backgroundColor: el.color,
-                    opacity: el.opacity || 1,
-                    boxShadow: `inset ${el.size!*0.1}px ${el.size!*0.1}px ${el.size!*0.3}px rgba(0,0,0,0.3), inset -${el.size!*0.05}px -${el.size!*0.05}px ${el.size!*0.2}px rgba(255,255,255,0.05)`,
-                    transform: transform,
-                  }}
-                />
-              );
-            } else if (el.type === 'mountains') {
-                 return (
-                    <div
-                        key={el.id}
-                        className="absolute"
-                        style={{
-                            left: xPosCenter,
-                            top: el.y,
-                            width: visualWidth,
-                            height: visualHeight,
-                            backgroundColor: el.color,
-                            opacity: el.opacity,
-                            transform: transform,
-                            // Removed clipPath for debugging
-                        }}
-                    />
-                 );
+              elementStyle = {
+                ...elementStyle,
+                ...getPlanetStyle(el), 
+              };
             }
-            return null;
+            
+            return (
+              <div
+                key={el.id}
+                style={elementStyle}
+              />
+            );
           })}
         </div>
       ))}

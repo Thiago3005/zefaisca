@@ -9,7 +9,7 @@ export const PLAYER_JUMP_FORCE = 750;
 export const PLAYER_MAX_JUMPS_DEFAULT = 1;
 
 // Sprite Sheet and Animation Constants
-export const SPRITE_SHEET_URL = 'Assets/AnimationSheet_Character.png';
+export const SPRITE_SHEET_URL = '/Assets/AnimationSheet_Character.png';
 export const SPRITE_FRAME_WIDTH = 32;
 export const SPRITE_FRAME_HEIGHT = 32;
 
@@ -39,26 +39,26 @@ export const PLAYER_ANIMATION_CONFIG = {
 
 export const SLIME_SPRITE_NATIVE_WIDTH = 32;
 export const SLIME_SPRITE_NATIVE_HEIGHT = 32;
-export const SLIME_DISPLAY_WIDTH = 24;
-export const SLIME_DISPLAY_HEIGHT = 24;
+export const SLIME_DISPLAY_WIDTH = 48;
+export const SLIME_DISPLAY_HEIGHT = 48;
 
 export const SLIME_ANIMATION_CONFIG = {
   idle: {
-    spriteSheetUrl: 'Assets/slime_idle.png',
+    spriteSheetUrl: '/Assets/slime_idle.png',
     frames: 4,
     frameRate: 200, // ms per frame
     totalColumns: 4,
     loops: true,
   },
   run: {
-    spriteSheetUrl: 'Assets/slime_run.png',
+    spriteSheetUrl: '/Assets/slime_run.png',
     frames: 6,
     frameRate: 150,
     totalColumns: 6,
     loops: true,
   },
   die: {
-    spriteSheetUrl: 'Assets/slime_die.png',
+    spriteSheetUrl: '/Assets/slime_die.png',
     frames: 5,
     frameRate: 180,
     totalColumns: 5,
@@ -199,11 +199,23 @@ export const INITIAL_PLAYER_STATS: PlayerStats = {
   pacManBonusPerPassThrough: 1,
   plagueAura: { enabled: false, percentHPDamagePerTick: 0.0025, tickInterval: 250, lastTickTime: 0 }, // 1% HP per sec (0.25% per 250ms)
   protectorShards: { enabled: false, count: 5, damageFactor: 0.3 },
+  // RAM Destroyer modifies existing enemyShrapnel stats
   sadisticThorns: { enabled: false, reflectFraction: 0 },
   speculatorSuperCrit: { chanceFromCrit: 0, multiplier: 2 },
   streamerBeam: { enabled: false, dpsPerAttackSpeedStatUnit: 50 },
   projectileSizeFactor: 1,
   whiteDwarfBlackHole: { enabled: false, duration: 3000, pullForce: 150, radius: 100 },
+  
+  // Friction and Anti-Aircraft
+  frictionStats: {
+    enabled: false,
+    distancePerProjectile: 50, // pixels representing 1 meter
+    projectilesPerActivation: 0,
+    projectileDamage: 0,
+    explosionRadius: 50, // Default base radius
+    distanceRunSinceLastActivation: 0,
+  },
+  antiAircraftFrictionRadiusMultiplier: 1,
 };
 
 export const GROUND_Y_LEVEL_VALUES = [
@@ -432,12 +444,20 @@ const ALL_UPGRADES_DEFINITIONS: Upgrade[] = [
     if (stats.invulnerabilityDuration === undefined) stats.invulnerabilityDuration = PLAYER_INVULNERABILITY_DURATION;
     stats.invulnerabilityDuration += PLAYER_INVULNERABILITY_DURATION * 0.10;
   }, maxLevel: 5 },
-  { id: 'fragmentation', name: 'Fragmentação', desc: 'Ao morrer, inimigos liberam 2 projéteis mais fracos em direções aleatórias', rarity: Rarity.Uncommon, icon: '💥', color: '#3f3', apply: (stats) => {
+  { id: 'fragmentation', name: 'Fragmentação', desc: 'Ao morrer, inimigos explodem, liberando 2 projéteis mais fracos em direções aleatórias.', rarity: Rarity.Uncommon, icon: '💥', color: '#3f3', apply: (stats) => {
     stats.enemyShrapnel.enabled = true;
     stats.enemyShrapnel.count = Math.min(10, (stats.enemyShrapnel.count || 0) + 2);
     stats.enemyShrapnel.damageMultiplier = Math.max(0.1, (stats.enemyShrapnel.damageMultiplier || 0.3) - 0.05);
   }, maxLevel: 1 },
-  { id: 'friction', name: 'Fricção', desc: 'Para cada metro que você corre, 1 projétil explosivo é lançado para cima', rarity: Rarity.Uncommon, icon: '🔥👟', color: '#3f3', apply: (stats) => { /* Logic in GameView */ }, maxLevel: 1 },
+  { id: 'friction', name: 'Fricção', desc: 'Para cada metro que você corre, 1 projétil explosivo é lançado para cima.', rarity: Rarity.Uncommon, icon: '🔥👟', color: '#3f3', apply: (stats) => {
+      stats.frictionStats.enabled = true;
+      stats.frictionStats.distancePerProjectile = 50; // ~1 meter in pixels
+      stats.frictionStats.projectilesPerActivation = 1;
+      stats.frictionStats.projectileDamage = stats.baseProjectileDamage * 0.7;
+      stats.frictionStats.explosionRadius = 50;
+      stats.frictionStats.distanceRunSinceLastActivation = 0;
+    }, maxLevel: 1
+  },
   { id: 'growth_plus', name: 'Crescimento+', desc: 'HP Máx. +20', rarity: Rarity.Uncommon, icon: '💪+', color: '#3f3', apply: (stats) => { stats.maxHp += 20; stats.currentHp += 20; }, maxLevel: 10 },
   { id: 'gush', name: 'Jorro', desc: 'Adiciona +1 Pulo', rarity: Rarity.Uncommon, icon: '🤸+', color: '#3f3', apply: (stats) => { stats.maxJumps += 1; }, maxLevel: 3 },
   { id: 'leech', name: 'Sanguessuga', desc: 'Roubo de Vida de 3% do Dano', rarity: Rarity.Uncommon, icon: '🧛', color: '#3f3', apply: (stats) => { stats.lifesteal = Math.min(0.5, stats.lifesteal + 0.03); }, maxLevel: 10 },
@@ -475,12 +495,20 @@ const ALL_UPGRADES_DEFINITIONS: Upgrade[] = [
     stats.maxSlowPower = 0.8;
     }, maxLevel: 1
   },
-  { id: 'fragmentation_plus', name: 'Fragmentação+', desc: 'Ao morrer, inimigos liberam 6 projéteis mais fracos em direções aleatórias', rarity: Rarity.Epic, icon: '💥+', color: '#3cf', apply: (stats) => {
+  { id: 'fragmentation_plus', name: 'Fragmentação+', desc: 'Ao morrer, inimigos explodem, liberando 6 projéteis mais fracos em direções aleatórias.', rarity: Rarity.Epic, icon: '💥+', color: '#3cf', apply: (stats) => {
     stats.enemyShrapnel.enabled = true;
     stats.enemyShrapnel.count = Math.min(20, (stats.enemyShrapnel.count || 0) + 6);
     stats.enemyShrapnel.damageMultiplier = Math.max(0.1, (stats.enemyShrapnel.damageMultiplier || 0.25) - 0.02);
   }, maxLevel: 1 },
-  { id: 'friction_plus', name: 'Fricção+', desc: 'Para cada metro que você corre, 3 projéteis explosivos são lançados para cima', rarity: Rarity.Epic, icon: '🔥👟+', color: '#3cf', apply: (stats) => { /* Logic in GameView */ }, maxLevel: 1 },
+  { id: 'friction_plus', name: 'Fricção+', desc: 'Para cada metro que você corre, 3 projéteis explosivos são lançados para cima.', rarity: Rarity.Epic, icon: '🔥👟+', color: '#3cf', apply: (stats) => {
+      stats.frictionStats.enabled = true;
+      stats.frictionStats.distancePerProjectile = 50;
+      stats.frictionStats.projectilesPerActivation = 3;
+      stats.frictionStats.projectileDamage = stats.baseProjectileDamage * 0.8; // Slightly more
+      stats.frictionStats.explosionRadius = 60; // Slightly larger
+      stats.frictionStats.distanceRunSinceLastActivation = 0;
+    }, maxLevel: 1
+  },
   { id: 'focus', name: 'Foco', desc: 'Ganha velocidade de ataque a cada segundo que você não se move. Reseta a cada onda', rarity: Rarity.Epic, icon: '🧘', color: '#3cf', apply: (stats) => { /* Logic in GameView */ }, maxLevel: 1 },
   { id: 'growth_plus_plus', name: 'Crescimento++', desc: 'HP Máx. +40', rarity: Rarity.Epic, icon: '💪++', color: '#3cf', apply: (stats) => { stats.maxHp += 40; stats.currentHp += 40; }, maxLevel: 5 },
   { id: 'leech_plus', name: 'Sanguessuga+', desc: 'Roubo de Vida de 9% do Dano', rarity: Rarity.Epic, icon: '🧛+', color: '#3cf', apply: (stats) => { stats.lifesteal = Math.min(0.75, stats.lifesteal + 0.09); }, maxLevel: 3 },
@@ -504,6 +532,12 @@ const ALL_UPGRADES_DEFINITIONS: Upgrade[] = [
   { id: 'wound', name: 'Ferimento', desc: 'Causar dano aplica sangramento ao inimigo', rarity: Rarity.Epic, icon: '🩸', color: '#3cf', apply: (stats) => { stats.canApplyWound = true; }, maxLevel: 1 },
 
   // Ascension Upgrades
+   { id: 'anti_aircraft', name: 'Anti-Aéreo', desc: 'Aumenta o raio de explosão dos projéteis da "Fricção" em 50%. Requer Fricção.', rarity: Rarity.Ascension, icon: '💥✈️', color: '#DA70D6', apply: (stats) => {
+      if (stats.frictionStats && stats.frictionStats.enabled) {
+        stats.antiAircraftFrictionRadiusMultiplier = (stats.antiAircraftFrictionRadiusMultiplier || 1) * 1.5;
+      }
+    }, requires: ['friction'], maxLevel: 1
+  },
   { id: 'absorbent', name: 'Absorvente', desc: 'Cada projétil que te atinge enquanto invulnerável te cura 1 HP. Receba 4 acúmulos de Manto.', rarity: Rarity.Ascension, icon: '🧽', color: '#DA70D6', apply: (stats) => {
       stats.absorbentHealOnInvulnHit = true;
       applyStackedUpgrade(stats, 'cloak', 4);
@@ -823,7 +857,7 @@ export const PROJECTILE_IMPACT_PARTICLE_SIZE = 3;
 export const PROJECTILE_IMPACT_PARTICLE_SPEED = 100;
 
 
-export const SHRAPNEL_PROJECTILE_SPEED = 300;
+export const SHRAPNEL_PROJECTILE_SPEED = 500; // Increased from 300
 export const SHRAPNEL_PROJECTILE_SIZE = 6;
 
 // Boss Specifics

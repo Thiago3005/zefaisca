@@ -85,6 +85,16 @@ const Projectile: React.FC<ProjectileProps> = ({ projectile }) => {
       content = <div className="w-full h-full bg-cyan-400 rounded-full border-2 border-cyan-200 shadow-md shadow-cyan-500/50" />;
       zIndex = 19;
       break;
+    case 'friction_spark':
+      width = 8; height = 18; // Tall thin spark
+      content = (
+        <div 
+            className="w-full h-full rounded-t-full rounded-b-sm bg-gradient-to-b from-orange-400 via-red-500 to-yellow-500 animate-pulse_fast"
+            style={{ boxShadow: `0 0 6px 1px #FF8C00aa` }}
+        />
+      );
+      zIndex = 20;
+      break;
     case 'default_magic': 
     default:
       width = BASE_PROJECTILE_WIDTH; height = BASE_PROJECTILE_HEIGHT;
@@ -108,10 +118,15 @@ const Projectile: React.FC<ProjectileProps> = ({ projectile }) => {
           projectile.visualType === 'shrapnel' ||
           projectile.visualType === 'ufo_projectile' ||
           projectile.visualType === 'alien_spit' || 
-          projectile.visualType === 'boss_beam_segment' 
+          projectile.visualType === 'boss_beam_segment' ||
+          projectile.visualType === 'friction_spark' // Friction spark also points up
       ) {
         rotationAngle = Math.atan2(projectile.vy, projectile.vx) * (180 / Math.PI);
-         if (projectile.visualType === 'default_magic' || projectile.visualType === 'boss_beam_segment' || projectile.visualType === 'ufo_projectile') {
+         if (projectile.visualType === 'default_magic' || 
+             projectile.visualType === 'boss_beam_segment' || 
+             projectile.visualType === 'ufo_projectile' ||
+             projectile.visualType === 'friction_spark' 
+            ) {
             rotationAngle += 90; 
          }
       }

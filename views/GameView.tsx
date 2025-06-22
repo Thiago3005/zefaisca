@@ -12,7 +12,7 @@ import {
   LIGHTNING_WARN_DURATION, EXPLOSION_EFFECT_DURATION, FLOATING_TEXT_DURATION,
   BOSS_WAVE_INTERVAL, PLATFORMS, PLAYER_GRAVITY, PLAYER_JUMP_FORCE, 
   PLATFORM_BODY_COLOR, PLATFORM_TOP_COLOR, PLATFORM_STROKE_THICKNESS,
-  BASE_PROJECTILE_WIDTH, BASE_PROJECTILE_HEIGHT, ENEMY_PROJECTILE_SPEED,
+  BASE_PROJECTILE_WIDTH, BASE_PROJECTILE_HEIGHT, ENEMY_PROJECTILE_SPEED, BASE_PLAYER_PROJECTILE_SPEED,
   GROUND_NODE_POINTS, GROUND_Y_LEVEL_VALUES, GROUND_SMOOTHING_TENSION,
   ALIEN_SPIT_WIDTH, ALIEN_SPIT_HEIGHT, ALIEN_SWARMER_PROJECTILE_SPEED_MULTIPLIER, ALIEN_SWARMER_PROJECTILE_DAMAGE,
   ENEMY_DEATH_PARTICLE_DURATION, ENEMY_DEATH_PARTICLE_COUNT, ENEMY_DEATH_PARTICLE_SIZE, ENEMY_DEATH_PARTICLE_SPEED,
@@ -50,6 +50,8 @@ interface GameViewProps {
 }
 
 interface Point { x: number; y: number; }
+
+const LIGHTNING_BOLT_VISUAL_WIDTH = 30;
 
 
 const generateSmoothGroundPath = (nodes: Point[], tension: number = 0.5): { stroke: string, fill: string } => {
@@ -227,21 +229,16 @@ const GameView: React.FC<GameViewProps> = ({ onGameOver, isEffectivelyPlaying, s
           waveInProgressRef.current = true;
           initialWaveSpawned.current = true; 
         }
-      } else {
-        setWaveNumber(1);
-        const required = enemies.length > 0 ? enemies.length : calculateEnemiesForWave(1);
-        setEnemiesRequiredForWave(required);
-        setEnemiesDefeatedThisWave(0);
-        waveInProgressRef.current = enemies.length > 0;
       }
     }
-  }, [gameStatus, selectedAccessory?.id]); // enemies removed from deps
+  }, [gameStatus, selectedAccessory?.id]);
 
   useEffect(() => {
     return () => {
         audioManager.stopSound('game_music');
         audioManager.stopSound('boss_attack_beam_fire'); 
         audioManager.stopSound('sentinela_heal_beam_loop');
+        // Stop any other relevant looping sounds here
     };
   }, []);
 
@@ -526,7 +523,15 @@ const triggerChainExplosion = useCallback((
     }));
     generateUpgradeChoices();
     setGameStatus(GameStatus.Paused);
-  }, [generateUpgradeChoices]);
+    audioManager.stopSound('game_music');
+    audioManager.stopSound('streamer_beam_loop');
+    enemies.forEach(enemy => { // Stop individual healing beams
+        if (enemy.type === 'sentinela_reparadora') {
+            audioManager.stopSound(`heal_beam_${enemy.id}`);
+        }
+    });
+
+  }, [generateUpgradeChoices, enemies]); // Added enemies to dependency array for sentinela heal beam stop
 
   const internalSpawnWaveEnemies = useCallback((currentWaveNum: number, numEnemiesToSpawn: number) => {
     waveInProgressRef.current = true;
@@ -556,7 +561,7 @@ const triggerChainExplosion = useCallback((
     setTemporaryEffectsData([]);
     const nextWaveNumber = waveNumber + 1;
     setWaveNumber(nextWaveNumber);
-    setEnemiesDefeatedThisWave(0);
+    setEnemiesDefeatedThisWave(0); // Reset for the new wave
     audioManager.playSound('wave_start');
     if (isBossWave(nextWaveNumber)) {
         setIsBossFightActive(true);
@@ -573,6 +578,7 @@ const triggerChainExplosion = useCallback((
         addFloatingText(`ONDA ${nextWaveNumber}!`, GAME_WIDTH / 2, GAME_HEIGHT / 3, '#FFFF00', true);
     }
     setGameStatus(GameStatus.Playing); 
+    audioManager.playSound('ambient_music_game', { loop: true, id: 'game_music' });
   }, [waveNumber, internalSpawnWaveEnemies, addFloatingText]);
 
   const handleSelectUpgrade = useCallback((upgrade: Upgrade) => {
@@ -627,7 +633,64 @@ const triggerChainExplosion = useCallback((
         const playerMovementUpdates = updatePlayerMovement(playerRef.current, keysPressed, delta, mousePosition.current.x, playerRef.current.stats.coffeeBuff.active, playerRef.current.stats.coffeeBuff.speedMultiplier, mainGroundVisualNodesRef.current);
         setPlayer(p => ({ ...p, ...playerMovementUpdates }));
 
-        let currentEnemiesList = enemies; // Start with the current state of enemies for this tick
+        // Friction Upgrade Logic
+        if (playerRef.current.stats.frictionStats.enabled && Math.abs(playerRef.current.vx) > 0) {
+            const distanceMoved = Math.abs(playerRef.current.vx) * delta;
+            const newTotalDistance = playerRef.current.stats.frictionStats.distanceRunSinceLastActivation + distanceMoved;
+
+            if (newTotalDistance >= playerRef.current.stats.frictionStats.distancePerProjectile) {
+                const activations = Math.floor(newTotalDistance / playerRef.current.stats.frictionStats.distancePerProjectile);
+                const pStats = playerRef.current.stats;
+                
+                for (let act = 0; act < activations; act++) {
+                    for (let i = 0; i < pStats.frictionStats.projectilesPerActivation; i++) {
+                        const frictionProjectile: Omit<Projectile, 'id'> = {
+                            x: playerRef.current.x + playerRef.current.width / 2,
+                            y: playerRef.current.y + playerRef.current.height / 2,
+                            width: 8, height: 18, // friction_spark size
+                            vx: (Math.random() - 0.5) * 50, // Slight horizontal spread
+                            vy: -BASE_PLAYER_PROJECTILE_SPEED * 0.6, // Upwards
+                            damage: pStats.frictionStats.projectileDamage,
+                            isPlayerProjectile: true,
+                            color: '#FFA500', // Orange/Red
+                            visualType: 'friction_spark',
+                            staffId: 'friction_ability',
+                            originalShooterId: playerRef.current.id,
+                            pierceLeft: 0,
+                            explodesOnImpact: true,
+                            explosionRadius: pStats.frictionStats.explosionRadius * pStats.antiAircraftFrictionRadiusMultiplier,
+                        };
+                        spawnAdditionalProjectile(frictionProjectile);
+                    }
+                }
+                audioManager.playSound('friction_projectile_launch', { volume: 0.3 });
+                setPlayer(p => ({
+                    ...p,
+                    stats: {
+                        ...p.stats,
+                        frictionStats: {
+                            ...p.stats.frictionStats,
+                            distanceRunSinceLastActivation: newTotalDistance % p.stats.frictionStats.distancePerProjectile,
+                        }
+                    }
+                }));
+
+            } else {
+                 setPlayer(p => ({
+                    ...p,
+                    stats: {
+                        ...p.stats,
+                        frictionStats: {
+                            ...p.stats.frictionStats,
+                            distanceRunSinceLastActivation: newTotalDistance,
+                        }
+                    }
+                }));
+            }
+        }
+
+
+        let currentEnemiesList = enemies; 
 
         if (keysPressed['mouse0']) {
           const shootResult = handlePlayerShooting(playerRef.current, selectedStaff, mousePosition.current, now, lastPlayerShotTime.current, playerRef.current.stats.coffeeBuff.active, playerRef.current.stats.coffeeBuff.fireRateMultiplier, currentEnemiesList, isBossFightActive);
@@ -645,7 +708,51 @@ const triggerChainExplosion = useCallback((
             spawnNewOrbCollectible, spawnNewEntropicFragment, spawnParticleEffect
         );
         currentEnemiesList = enemyUpdateResult.updatedEnemies;
-        // enemyUpdateResult.newlyCompletedDeaths is for slime animation completion tracking
+        
+        // Lightning Strikes Logic
+        if (playerRef.current.stats.lightningStrikes.enabled && 
+            now - playerRef.current.stats.lightningStrikes.lastCycleTime > playerRef.current.stats.lightningStrikes.cooldown) {
+            
+            setPlayer(p => ({
+                ...p,
+                stats: {
+                    ...p.stats,
+                    lightningStrikes: {
+                        ...p.stats.lightningStrikes,
+                        lastCycleTime: now,
+                    }
+                }
+            }));
+
+            for (let i = 0; i < playerRef.current.stats.lightningStrikes.strikesPerCycle; i++) {
+                let targetX: number;
+                // let targetY: number; // Target Y is not needed for a full sky bolt
+                // const lightningRadius = playerRef.current.stats.lightningStrikes.radius; // Used for warning
+                const aliveEnemies = currentEnemiesList.filter(e => e.hp > 0 && !e.isDying);
+
+                if (aliveEnemies.length > 0) {
+                    const randomEnemyIndex = Math.floor(Math.random() * aliveEnemies.length);
+                    const targetEnemy = aliveEnemies[randomEnemyIndex];
+                    targetX = targetEnemy.x + targetEnemy.width / 2;
+                    // targetY = targetEnemy.y + targetEnemy.height / 2; // Not used for bolt's y
+                } else {
+                    targetX = playerRef.current.x + playerRef.current.width / 2 + (Math.random() - 0.5) * 200;
+                    // targetY = playerRef.current.y + playerRef.current.height / 2 + (Math.random() - 0.5) * 100; // Not used
+                    targetX = Math.max(LIGHTNING_BOLT_VISUAL_WIDTH / 2, Math.min(GAME_WIDTH - LIGHTNING_BOLT_VISUAL_WIDTH / 2, targetX));
+                }
+                
+                addTempEffect({
+                    x: targetX - LIGHTNING_BOLT_VISUAL_WIDTH / 2, 
+                    y: 0, 
+                    width: LIGHTNING_BOLT_VISUAL_WIDTH,
+                    height: GAME_HEIGHT, 
+                    effectType: 'lightning_aoe',
+                    duration: LIGHTNING_WARN_DURATION + EXPLOSION_EFFECT_DURATION, 
+                    damage: playerRef.current.stats.lightningStrikes.damage,
+                });
+                audioManager.playSound('projectile_explode', { volume: 0.7 }); 
+            }
+        }
         
         const projectileDamageResult = applyPlayerProjectileDamageToEnemies(
             currentEnemiesList, playerProjectiles, playerRef.current.stats, 
@@ -698,21 +805,6 @@ const triggerChainExplosion = useCallback((
         }
         currentEnemiesList = enemyListAfterChains;
         defeatedThisTickRef.current += totalKillsFromAllChainsThisTick;
-        // Adjust defeatedThisTickRef if it's overcounting due to killsFromAllChains including the initial direct kill
-        // The `killsThisChainAndSubChains` from `triggerChainExplosion` should represent *new* kills by the chain.
-        // It's possible `defeatedThisTickRef.current` ends up being `directKills + (directKills_that_chain + chainKills)`, effectively double counting direct chain starters.
-        // To fix: `defeatedThisTickRef.current = allDirectlyDefeatedEnemies.length + totalKillsFromAllChainsThisTick - (number of direct kills that started a chain)`
-        // For simplicity, let's assume `totalKillsFromAllChainsThisTick` is purely *additional* kills.
-        // This means `triggerChainExplosion` must not count the initial trigger enemy if it was already counted.
-        // My refactored `triggerChainExplosion` counts kills where HP goes from >0 to <=0 *within its scope*.
-        // So, `defeatedThisTickRef.current` should be `allDirectlyDefeatedEnemies.length` (counted once)
-        // And then the `totalKillsFromAllChainsThisTick` are *additional* unique kills.
-        // Let's reset direct kills for chain triggers to avoid double counting if triggerChainExplosion could re-count them.
-        // The most robust way: `defeatedThisTickRef.current` gets the number of enemies whose HP became <=0 in this tick.
-        // The sum of `allDirectlyDefeatedEnemies.length` and `totalKillsFromAllChainsThisTick` should be okay if
-        // `triggerChainExplosion` only counts enemies that were NOT part of `allDirectlyDefeatedEnemies`.
-        // My implementation of triggerChainExplosion: `killsFromThisSpecificExplosion` are new kills. This is fine.
-
 
         const playerDamageResult = processPlayerDamage(playerRef.current, enemyProjectilesData, currentEnemiesList, now, addFloatingText, triggerScreenShake);
         if (playerDamageResult.damageTaken > 0 || playerDamageResult.invulnerabilityTriggered || playerDamageResult.shieldBroken) {
@@ -873,24 +965,33 @@ const triggerChainExplosion = useCallback((
 
 
         const currentTickTotalKills = defeatedThisTickRef.current;
-        if (currentTickTotalKills > 0) {
-          setEnemiesDefeatedThisWave(prev => prev + currentTickTotalKills);
-        }
+        const potentialTotalDefeatedThisWave = enemiesDefeatedThisWave + currentTickTotalKills;
+        let waveShouldEnd = false;
 
         if (gameStatusRef.current === GameStatus.Playing &&
             !isBossFightActive &&
             waveInProgressRef.current &&
             enemiesRequiredForWave > 0 &&
-            (enemiesDefeatedThisWave) >= enemiesRequiredForWave 
-           ) {
-             const activeEnemiesRemaining = enemiesToSetState.filter(enemyToCheck => {
+            potentialTotalDefeatedThisWave >= enemiesRequiredForWave) {
+            
+            const activeEnemiesStillPresent = enemiesToSetState.filter(enemyToCheck => {
                  if (enemyToCheck.isBoss) return false; 
-                 return enemyToCheck.hp > 0;
-             });
+                 return enemyToCheck.hp > 0; // Check based on the just-updated enemiesToSetState
+            });
 
-             if (activeEnemiesRemaining.length === 0) { 
-                 prepareForUpgradeSelection();
-             }
+            if (activeEnemiesStillPresent.length === 0) {
+                waveShouldEnd = true;
+            }
+        }
+
+        if (waveShouldEnd) {
+            prepareForUpgradeSelection();
+            // setEnemiesDefeatedThisWave will be reset to 0 by startNextWave within handleSelectUpgrade
+        } else {
+            // If the wave is not ending, but there were kills, update the count for the next frame.
+            if (currentTickTotalKills > 0) {
+                setEnemiesDefeatedThisWave(prev => prev + currentTickTotalKills);
+            }
         }
 
 
@@ -903,6 +1004,11 @@ const triggerChainExplosion = useCallback((
           audioManager.stopSound('game_music'); 
           audioManager.stopSound('boss_attack_beam_fire'); 
           audioManager.stopSound('sentinela_heal_beam_loop'); 
+          enemies.forEach(enemy => {
+            if (enemy.type === 'sentinela_reparadora') {
+                audioManager.stopSound(`heal_beam_${enemy.id}`);
+            }
+          });
 
           setGameStatus(GameStatus.GameOver);
           onGameOver(gameTime, playerRef.current.stats.level);
@@ -1027,37 +1133,79 @@ const triggerChainExplosion = useCallback((
       {temporaryEffects.map(effect => { 
         let effectVisual = null; const key = effect.id;
         const opacity = Math.max(0, 1 - (Date.now() - effect.createdAt) / effect.duration);
-        const style: React.CSSProperties = {
-            position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height,
-            opacity: opacity, transformOrigin: 'center center', pointerEvents: 'none',
-        };
+        
         switch (effect.effectType) {
             case 'lightning_aoe':
-                if (Date.now() - effect.createdAt < LIGHTNING_WARN_DURATION) {
-                    effectVisual = <div key={`${key}-warn`} style={{ ...style, borderRadius: '50%', border: `3px dashed rgba(255, 255, 0, ${opacity})`, backgroundColor: `rgba(255, 255, 0, ${opacity * 0.1})`, zIndex: 4 }} />;
+                const lightningStats = playerRef.current.stats.lightningStrikes;
+                const warningRadiusActual = lightningStats.radius;
+                const isWarningPhase = Date.now() - effect.createdAt < LIGHTNING_WARN_DURATION;
+
+                if (isWarningPhase) {
+                    const warningCenterX = effect.x + effect.width / 2; // Bolt's center X
+                    const warningCenterY = getVisualGroundYAtX(warningCenterX, mainGroundVisualNodesRef.current);
+                    effectVisual = (
+                        <div
+                            key={`${key}-warn`}
+                            style={{
+                                position: 'absolute',
+                                left: warningCenterX - warningRadiusActual,
+                                top: warningCenterY - warningRadiusActual,
+                                width: warningRadiusActual * 2,
+                                height: warningRadiusActual * 2,
+                                borderRadius: '50%',
+                                border: `3px dashed rgba(255, 255, 0, ${opacity})`,
+                                backgroundColor: `rgba(255, 255, 0, ${opacity * 0.1})`,
+                                zIndex: 4,
+                                pointerEvents: 'none',
+                            }}
+                        />
+                    );
                 } else {
-                     effectVisual = <div key={key} style={{ ...style, borderRadius: '50%', backgroundColor: `rgba(255, 255, 180, ${opacity * 0.7})`, boxShadow: `0 0 ${effect.width / 2}px ${effect.width / 4}px rgba(255, 255, 0, ${opacity * 0.5})`, zIndex: 10 }} className="animate-pulse_fast" />;
+                    // Strike Visual (Vertical Bolt)
+                    effectVisual = (
+                        <div
+                            key={key}
+                            style={{
+                                position: 'absolute',
+                                left: effect.x,
+                                top: effect.y, // Should be 0
+                                width: effect.width,
+                                height: effect.height, // Should be GAME_HEIGHT
+                                backgroundColor: `rgba(255, 255, 180, ${opacity * 0.85})`,
+                                boxShadow: `0 0 15px 7px rgba(255, 255, 100, ${opacity * 0.7}), inset 0 0 10px 2px rgba(255, 255, 255, ${opacity * 0.5})`,
+                                zIndex: 10,
+                                pointerEvents: 'none',
+                            }}
+                            className="animate-pulse_fast"
+                        >
+                            <div style={{
+                                position: 'absolute', inset: '2px',
+                                backgroundColor: `rgba(255, 255, 255, ${opacity * 0.6})`,
+                                filter: 'blur(3px)',
+                            }} />
+                        </div>
+                    );
                 }
                 break;
             case 'butter_slick':
-                effectVisual = <div key={key} style={{ ...style, backgroundColor: `rgba(240, 230, 140, ${opacity * 0.6})`, borderRadius: '10px', zIndex: 2 }} />;
+                 effectVisual = <div key={key} style={{ position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity: opacity * 0.6, backgroundColor: `rgba(240, 230, 140, ${opacity * 0.6})`, borderRadius: '10px', zIndex: 2, pointerEvents: 'none' }} />;
                 break;
             case 'radiation_trail':
-                effectVisual = <div key={key} style={{ ...style, backgroundColor: `rgba(124, 252, 0, ${opacity * 0.5})`, borderRadius: '50%', filter: `blur(2px)`, zIndex: 2 }} />;
+                 effectVisual = <div key={key} style={{ position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity: opacity * 0.5, backgroundColor: `rgba(124, 252, 0, ${opacity * 0.5})`, borderRadius: '50%', filter: `blur(2px)`, zIndex: 2, pointerEvents: 'none' }} />;
                 break;
             case 'explosion_aoe':
                 const progress = Math.min(1, (Date.now() - effect.createdAt) / EXPLOSION_EFFECT_DURATION);
                 const currentScale = 1 + progress * 0.5; 
-                effectVisual = <div key={key} style={{ ...style, borderRadius: '50%', backgroundColor: `rgba(255, 69, 0, ${opacity * 0.7})`, boxShadow: `0 0 ${effect.width / 3}px ${effect.width / 5}px rgba(255, 165, 0, ${opacity * 0.6})`, transform: `scale(${currentScale})`, zIndex: 10 }} />;
+                effectVisual = <div key={key} style={{position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity, borderRadius: '50%', backgroundColor: `rgba(255, 69, 0, ${opacity * 0.7})`, boxShadow: `0 0 ${effect.width / 3}px ${effect.width / 5}px rgba(255, 165, 0, ${opacity * 0.6})`, transform: `scale(${currentScale})`, zIndex: 10, pointerEvents: 'none' }} />;
                 break;
             case 'projectile_trail_particle':
-                effectVisual = <div key={key} style={{ ...style, backgroundColor: effect.color || `rgba(255, 255, 224, ${opacity * 0.8})`, borderRadius: '50%', zIndex: 18 }} />;
+                effectVisual = <div key={key} style={{ position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity: opacity * 0.8, backgroundColor: effect.color || `rgba(255, 255, 224, ${opacity * 0.8})`, borderRadius: '50%', zIndex: 18, pointerEvents: 'none' }} />;
                 break;
             case 'vision_obscure_aoe':
-                effectVisual = <div key={key} style={{ ...style, backgroundColor: `rgba(10, 5, 20, ${opacity * 0.65})`, borderRadius: '50%', zIndex: 25, filter: `blur(3px)` }} />;
+                effectVisual = <div key={key} style={{position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity: opacity * 0.65, backgroundColor: `rgba(10, 5, 20, ${opacity * 0.65})`, borderRadius: '50%', zIndex: 25, filter: `blur(3px)`, pointerEvents: 'none' }} />;
                 break;
             case 'gravity_well_aoe':
-                effectVisual = <div key={key} style={{ ...style, border: `3px dashed rgba(100, 100, 255, ${opacity * 0.7})`, borderRadius: '50%', zIndex: 3, animation: 'spin 2s linear infinite' }} />;
+                effectVisual = <div key={key} style={{position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity: opacity * 0.7, border: `3px dashed rgba(100, 100, 255, ${opacity * 0.7})`, borderRadius: '50%', zIndex: 3, animation: 'spin 2s linear infinite', pointerEvents: 'none' }} />;
                 break;
             case 'healing_beam':
                 const sourceX = effect.x; 
@@ -1066,15 +1214,15 @@ const triggerChainExplosion = useCallback((
                 const targetY = effect.height; 
                 const angle = Math.atan2(targetY - sourceY, targetX - sourceX) * 180 / Math.PI;
                 const distance = Math.hypot(targetX - sourceX, targetY - sourceY);
-                effectVisual = <div key={key} style={{ position: 'absolute', left: sourceX, top: sourceY, width: distance, height: '4px', backgroundColor: effect.color || 'rgba(50,255,50,0.6)', transform: `rotate(${angle}deg)`, transformOrigin: '0 50%', zIndex: 7, opacity: opacity }} />;
+                effectVisual = <div key={key} style={{ position: 'absolute', left: sourceX, top: sourceY, width: distance, height: '4px', backgroundColor: effect.color || 'rgba(50,255,50,0.6)', transform: `rotate(${angle}deg)`, transformOrigin: '0 50%', zIndex: 7, opacity: opacity, pointerEvents: 'none' }} />;
                 break;
             case 'meteor_impact_warning':
-                 effectVisual = <div key={key} style={{ position: 'absolute', left: effect.x, top: getVisualGroundYAtX(effect.x + effect.width/2, mainGroundVisualNodesRef.current) - effect.height - 2, width: effect.width, height: effect.height, backgroundColor: `rgba(255,0,0, ${opacity*0.3})`, border: `2px dashed rgba(255,0,0, ${opacity*0.7})`, borderRadius: '50%', zIndex: 4}} />;
+                 effectVisual = <div key={key} style={{ position: 'absolute', left: effect.x, top: getVisualGroundYAtX(effect.x + effect.width/2, mainGroundVisualNodesRef.current) - effect.height - 2, width: effect.width, height: effect.height, backgroundColor: `rgba(255,0,0, ${opacity*0.3})`, border: `2px dashed rgba(255,0,0, ${opacity*0.7})`, borderRadius: '50%', zIndex: 4, pointerEvents: 'none'}} />;
                 break;
              case 'meteor_impact_aoe': 
                 const meteorProgress = Math.min(1, (Date.now() - effect.createdAt) / (EXPLOSION_EFFECT_DURATION * 1.5));
                 const meteorScale = 1 + meteorProgress * 0.7;
-                effectVisual = <div key={key} style={{ ...style, borderRadius: '50%', backgroundColor: `rgba(255, 100, 0, ${opacity * 0.8})`, boxShadow: `0 0 ${effect.width / 2}px ${effect.width / 3}px rgba(255, 165, 0, ${opacity * 0.7})`, transform: `scale(${meteorScale})`, zIndex: 11 }} />;
+                effectVisual = <div key={key} style={{position: 'absolute', left: effect.x, top: effect.y, width: effect.width, height: effect.height, opacity, borderRadius: '50%', backgroundColor: `rgba(255, 100, 0, ${opacity * 0.8})`, boxShadow: `0 0 ${effect.width / 2}px ${effect.width / 3}px rgba(255, 165, 0, ${opacity * 0.7})`, transform: `scale(${meteorScale})`, zIndex: 11, pointerEvents: 'none' }} />;
                 break;
         }
         return effectVisual;

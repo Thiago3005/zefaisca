@@ -651,14 +651,24 @@ export const applyPlayerProjectileDamageToEnemies = (
 
                 if (projectileConsumedForThisProjectileInstance || currentPierceLeft <= 0) {
                     const staffDetails = STAVES.find(s => s.id === proj.staffId);
-                    if (staffDetails?.explodesOnImpact && staffDetails.explosionRadius) {
-                       audioManager.playSound('projectile_explode');
-                       addTemporaryEffect({
-                            x: proj.x - staffDetails.explosionRadius + proj.width / 2,
-                            y: proj.y - staffDetails.explosionRadius + proj.height / 2,
-                            width: staffDetails.explosionRadius * 2, height: staffDetails.explosionRadius * 2,
-                            effectType: 'explosion_aoe', duration: EXPLOSION_EFFECT_DURATION, damage: proj.damage * 0.75,
-                        });
+                    
+                    const shouldExplodeFromStaff = staffDetails?.explodesOnImpact && staffDetails.explosionRadius;
+                    const shouldExplodeFromProjectile = proj.explodesOnImpact && proj.explosionRadius && proj.damage > 0;
+                    
+                    if (shouldExplodeFromStaff || shouldExplodeFromProjectile) {
+                        const explosionRadiusToUse = proj.explosionRadius || staffDetails?.explosionRadius || 0;
+                        const explosionDamageToUse = proj.damage * 0.75; // Base explosion damage on projectile's direct hit damage
+
+                        if (explosionRadiusToUse > 0) {
+                            audioManager.playSound('projectile_explode');
+                            addTemporaryEffect({
+                               x: proj.x - explosionRadiusToUse + proj.width / 2,
+                               y: proj.y - explosionRadiusToUse + proj.height / 2,
+                               width: explosionRadiusToUse * 2, height: explosionRadiusToUse * 2,
+                               effectType: 'explosion_aoe', duration: EXPLOSION_EFFECT_DURATION, 
+                               damage: explosionDamageToUse,
+                            });
+                        }
                     }
                 }
             }
@@ -679,7 +689,7 @@ export const applyPlayerProjectileDamageToEnemies = (
         spawnParticleEffect(firstHitPos.x, firstHitPos.y, 'projectile_impact');
 
         if (Math.floor(newHp) <= 0) { // Enemy defeated by this batch of projectiles
-            newlyDefeatedEnemyData.push(originalData); // Add to defeated list for counting
+            newlyDefeatedEnemyData.push(originalData);
 
             if (enemy.type === 'slime') {
                 return {
@@ -703,6 +713,28 @@ export const applyPlayerProjectileDamageToEnemies = (
                 }
                 if (!enemy.isBoss && Math.random() < playerStats.healOrbChance) {
                     spawnOrbCallback(originalData.x + originalData.width / 2, originalData.y + originalData.height / 2);
+                }
+                 // Enemy Shrapnel Logic for non-slime, non-boss enemies
+                if (playerStats.enemyShrapnel.enabled && !enemy.isBoss && enemy.type !== 'slime') {
+                    for (let i = 0; i < playerStats.enemyShrapnel.count; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = BASE_PLAYER_PROJECTILE_SPEED * 0.5; // Shrapnel is slower
+                        spawnAdditionalProjectile({
+                            x: originalData.x + originalData.width / 2,
+                            y: originalData.y + originalData.height / 2,
+                            width: 6, height: 6, // Smaller shrapnel
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            damage: playerStats.baseProjectileDamage * playerStats.enemyShrapnel.damageMultiplier,
+                            isPlayerProjectile: true,
+                            color: '#A9A9A9', // DarkGray
+                            visualType: 'shrapnel',
+                            staffId: 'shrapnel_ability', // Generic ID
+                            originalShooterId: playerStats.level.toString(), // Can use player ID or level
+                            pierceLeft: 0,
+                            explodesOnImpact: false, // Shrapnel itself doesn't typically explode again unless specified
+                        });
+                    }
                 }
                 return { ...enemy, hp: 0 }; 
             }
@@ -800,7 +832,7 @@ export const applyAoeDamageToEnemies = (
         if (Math.floor(newHp) <= 0) { // Enemy defeated by this AOE
             newlyDefeatedEnemyData.push(originalData);
 
-            if (enemy.type === 'slime') {
+            if (originalData.type === 'slime') { // Use originalData.type for consistency
                 return { 
                     ...enemy, 
                     hp: 0, 
