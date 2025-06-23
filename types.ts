@@ -447,6 +447,7 @@ export interface FloatingText {
   vy?: number;
   vx?: number;
   size?: number;
+  isActive?: boolean; // For pooling
 }
 
 export type TemporaryEffectType =
@@ -487,6 +488,7 @@ export interface TemporaryEffect extends GameObject {
   // For healing beam
   targetId?: string;
   sourceId?: string;
+  isActive?: boolean; // For pooling
 }
 
 export type KeysPressed = Record<string, boolean>;
@@ -579,3 +581,51 @@ export interface StackGrant {
   upgradeId: string;
   count: number;
 }
+
+// GameState for useReducer
+export interface GameState {
+  player: Player;
+  enemies: Enemy[];
+  playerProjectiles: Projectile[];
+  enemyProjectiles: Projectile[];
+  healingOrbs: HealingOrb[];
+  entropicFragments: EntropicFragment[];
+  temporaryEffects: TemporaryEffect[]; // Will be managed by pooling in GameView itself
+  
+  gameTime: number;
+  internalGameTime: number; // More precise, in ms
+  
+  waveNumber: number;
+  enemiesDefeatedThisWave: number;
+  enemiesRequiredForWave: number;
+  isBossFightActive: boolean;
+  
+  currentUpgradeChoices: Upgrade[];
+  activeDynamicEvent: ActiveDynamicEvent | null;
+
+  // Flags for controlling game flow from reducer
+  shouldShowUpgradeModal: boolean;
+  isGameOver: boolean;
+  gameOverScore: number;
+  gameOverLevel: number;
+  
+  // For interaction with UI/effects outside direct state
+  triggerScreenShake?: { intensity: number; duration: number; id: number }; // id to ensure new shakes are triggered
+  floatingTextsToAdd: FloatingText[]; // Queued texts to be added by GameView
+  tempEffectsToAdd: TemporaryEffect[]; // Queued effects to be added by GameView
+}
+
+// Actions for GameReducer
+export type GameAction =
+  | { type: 'INITIALIZE_GAME_STATE'; payload: { player: Player; enemies: Enemy[]; waveNumber: number; enemiesRequiredForWave: number; selectedStaffId: string; selectedAccessoryId?: string;} }
+  | { type: 'PROCESS_GAME_TICK'; payload: { delta: number; now: number; keysPressed: KeysPressed; mousePosition: { x: number; y: number }; selectedStaff: Staff; mainGroundVisualNodes: {x:number, y:number}[] } }
+  | { type: 'SELECT_UPGRADE'; payload: Upgrade }
+  | { type: 'REROLL_UPGRADES' }
+  | { type: 'PLAYER_JUMP_ACTION'; }
+  | { type: 'PLAYER_SHOOT_ACTION'; payload: { now: number; mousePosition: { x: number; y: number }; selectedStaff: Staff; } }
+  | { type: 'DISMISS_UPGRADE_MODAL_AND_START_NEXT_WAVE' }
+  | { type: 'ADD_FLOATING_TEXT_FROM_REDUCER'; payload: Omit<FloatingText, 'id' | 'isActive'> }
+  | { type: 'ADD_TEMP_EFFECT_FROM_REDUCER'; payload: Omit<TemporaryEffect, 'id' | 'createdAt' | 'hitEnemyIds' | 'isActive'> };
+
+export interface Point { x: number; y: number; } // Already in GameView, moved here for broader use
+  

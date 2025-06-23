@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Player as PlayerData } from '../types';
 import { 
@@ -15,7 +16,7 @@ interface PlayerProps {
 
 type AnimationName = keyof typeof PLAYER_ANIMATION_CONFIG;
 
-const Player: React.FC<PlayerProps> = ({ player }) => {
+const PlayerComponent: React.FC<PlayerProps> = ({ player }) => {
   const [currentAnimationName, setCurrentAnimationName] = useState<AnimationName>('idle');
   const [currentFrame, setCurrentFrame] = useState(0);
 
@@ -129,4 +130,17 @@ const Player: React.FC<PlayerProps> = ({ player }) => {
   );
 };
 
-export default Player;
+const MemoizedPlayer = React.memo(PlayerComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.player.x === nextProps.player.x &&
+    prevProps.player.y === nextProps.player.y &&
+    prevProps.player.vx === nextProps.player.vx && // For animation state
+    prevProps.player.isOnGround === nextProps.player.isOnGround && // For animation state
+    prevProps.player.isInvulnerable === nextProps.player.isInvulnerable &&
+    prevProps.player.facingDirection === nextProps.player.facingDirection &&
+    prevProps.player.stats.shield.active === nextProps.player.stats.shield.active &&
+    prevProps.player.stats.playerSizeMultiplier === nextProps.player.stats.playerSizeMultiplier
+  );
+});
+
+export default MemoizedPlayer;

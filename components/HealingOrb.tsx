@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { HealingOrb as HealingOrbData } from '../types';
 
@@ -6,7 +7,7 @@ interface HealingOrbProps {
   orb: HealingOrbData;
 }
 
-const HealingOrb: React.FC<HealingOrbProps> = ({ orb }) => {
+const HealingOrbComponent: React.FC<HealingOrbProps> = ({ orb }) => {
   return (
     <div
       className="absolute rounded-full bg-green-500 animate-pulse border-2 border-green-300 shadow-lg shadow-green-500/50"
@@ -21,4 +22,12 @@ const HealingOrb: React.FC<HealingOrbProps> = ({ orb }) => {
   );
 };
 
-export default HealingOrb;
+const MemoizedHealingOrb = React.memo(HealingOrbComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.orb.id === nextProps.orb.id &&
+    prevProps.orb.x === nextProps.orb.x &&
+    prevProps.orb.y === nextProps.orb.y
+  );
+});
+
+export default MemoizedHealingOrb;

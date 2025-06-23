@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Enemy as EnemyData, EnemyType } from '../types';
 import { SLIME_DISPLAY_WIDTH, SLIME_DISPLAY_HEIGHT, SLIME_SPRITE_NATIVE_WIDTH, SLIME_SPRITE_NATIVE_HEIGHT, HIT_FLASH_DURATION } from '../constants';
@@ -39,7 +40,7 @@ const getEnemyVisuals = (type: EnemyType): { emoji: string; colorClass: string, 
   }
 };
 
-const Enemy: React.FC<EnemyProps> = ({ enemy }) => {
+const EnemyComponent: React.FC<EnemyProps> = ({ enemy }) => {
   const healthPercentage = (enemy.hp / enemy.maxHp) * 100;
   const [isFlashing, setIsFlashing] = useState(false);
   const prevHpRef = React.useRef(enemy.hp);
@@ -158,4 +159,21 @@ const Enemy: React.FC<EnemyProps> = ({ enemy }) => {
   );
 };
 
-export default Enemy;
+const MemoizedEnemy = React.memo(EnemyComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.enemy.id === nextProps.enemy.id && // Important for list reordering
+    prevProps.enemy.x === nextProps.enemy.x &&
+    prevProps.enemy.y === nextProps.enemy.y &&
+    prevProps.enemy.hp === nextProps.enemy.hp &&
+    prevProps.enemy.isDying === nextProps.enemy.isDying &&
+    prevProps.enemy.animationState === nextProps.enemy.animationState &&
+    prevProps.enemy.currentFrame === nextProps.enemy.currentFrame &&
+    prevProps.enemy.facingDirection === nextProps.enemy.facingDirection &&
+    prevProps.enemy.isStunnedUntil === nextProps.enemy.isStunnedUntil &&
+    prevProps.enemy.isSlowed?.until === nextProps.enemy.isSlowed?.until &&
+    prevProps.enemy.isCursedUntil === nextProps.enemy.isCursedUntil &&
+    prevProps.enemy.lastHitFlashTime === nextProps.enemy.lastHitFlashTime // Or compare `isFlashing` state if exposed
+  );
+});
+
+export default MemoizedEnemy;
