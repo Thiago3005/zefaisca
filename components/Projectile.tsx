@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Projectile as ProjectileData } from '../types';
 import { BASE_PROJECTILE_WIDTH, BASE_PROJECTILE_HEIGHT, GAME_HEIGHT, SHRAPNEL_PROJECTILE_SIZE, ALIEN_SPIT_WIDTH, ALIEN_SPIT_HEIGHT, PIPOCA_SOUL_FRAGMENT_SIZE } from '../constants'; 
@@ -7,7 +8,7 @@ interface ProjectileProps {
   projectile: ProjectileData;
 }
 
-const Projectile: React.FC<ProjectileProps> = ({ projectile }) => {
+const ProjectileComponent: React.FC<ProjectileProps> = ({ projectile }) => {
   let width = projectile.width;
   let height = projectile.height;
   let content;
@@ -161,4 +162,14 @@ const Projectile: React.FC<ProjectileProps> = ({ projectile }) => {
   );
 };
 
-export default Projectile;
+const MemoizedProjectile = React.memo(ProjectileComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.projectile.id === nextProps.projectile.id &&
+    prevProps.projectile.x === nextProps.projectile.x &&
+    prevProps.projectile.y === nextProps.projectile.y &&
+    prevProps.projectile.visualType === nextProps.projectile.visualType && // Visual type changes content
+    prevProps.projectile.color === nextProps.projectile.color // For default_magic
+  );
+});
+
+export default MemoizedProjectile;
