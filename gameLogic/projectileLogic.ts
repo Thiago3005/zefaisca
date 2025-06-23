@@ -1,7 +1,7 @@
 
 
 import React from 'react';
-import { Projectile as ProjectileData } from '../types';
+import { Projectile as ProjectileData, Projectile } from '../types';
 import { BASE_PROJECTILE_WIDTH, BASE_PROJECTILE_HEIGHT, GAME_HEIGHT, SHRAPNEL_PROJECTILE_SIZE, ALIEN_SPIT_WIDTH, ALIEN_SPIT_HEIGHT, PIPOCA_SOUL_FRAGMENT_SIZE } from '../constants'; 
 
 interface ProjectileProps {
@@ -18,7 +18,12 @@ const ProjectileComponent: React.FC<ProjectileProps> = ({ projectile }) => {
   switch (projectile.visualType) {
     case 'chinelo':
       width = 24; height = 12; 
-      content = <span style={{ fontSize: `${Math.min(width,height)*0.8}px`, display: 'inline-block', transform: projectile.vx && projectile.vx < 0 ? 'scaleX(-1)' : '' }}>🩴</span>;
+      const flipStyle = projectile.vx && projectile.vx < 0 ? 'scaleX(-1)' : '';
+      content = <span style={{
+        fontSize: `${Math.min(width,height)*0.8}px`,
+        display: 'inline-block',
+        transform: flipStyle
+      }}>🩴</span>;
       break;
     case 'pipoca_kernel':
       width = 8; height = 8;
@@ -44,7 +49,12 @@ const ProjectileComponent: React.FC<ProjectileProps> = ({ projectile }) => {
       break;
     case 'slipper':
       width = 22; height = 12;
-      content = <span style={{ fontSize: `${Math.min(width,height)*0.8}px`, display: 'inline-block', transform: projectile.vx && projectile.vx < 0 ? 'scaleX(-1)' : '' }}>👟</span>;
+      const slipperFlipStyle = projectile.vx && projectile.vx < 0 ? 'scaleX(-1)' : '';
+      content = <span style={{
+        fontSize: `${Math.min(width,height)*0.8}px`,
+        display: 'inline-block',
+        transform: slipperFlipStyle
+      }}>👟</span>;
       break;
     case 'chicken':
       width = 20; height = 20;
@@ -175,8 +185,9 @@ const MemoizedProjectile = React.memo(ProjectileComponent, (prevProps, nextProps
 export const updatePlayerProjectiles = (
   projectiles: Projectile[], 
   delta: number, 
-  gameWidth: number, 
-  gameHeight: number
+  enemies: any[], 
+  isBossFightActive: boolean, 
+  onEffect: (effect: any) => void
 ): Projectile[] => {
   return projectiles
     .map(projectile => {
@@ -184,15 +195,33 @@ export const updatePlayerProjectiles = (
       const newX = projectile.x + (projectile.vx || 0) * delta;
       const newY = projectile.y + (projectile.vy || 0) * delta;
 
-      // Check if projectile is out of bounds
+      // Check if projectile is out of bounds (using a safe default viewport size if needed)
+      const viewportWidth = 800; // Default value, adjust if needed
+      const viewportHeight = 600; // Default value, adjust if needed
+      
       const isOutOfBounds = 
         newX < -projectile.width || 
-        newX > gameWidth + projectile.width ||
+        newX > viewportWidth + projectile.width ||
         newY < -projectile.height ||
-        newY > gameHeight + projectile.height;
+        newY > viewportHeight + projectile.height;
 
       if (isOutOfBounds) {
         return null; // Mark for removal
+      }
+
+      // Apply any projectile-specific logic here
+      if (projectile.onUpdate) {
+        const result = projectile.onUpdate({
+          projectile: { ...projectile, x: newX, y: newY },
+          delta,
+          enemies,
+          isBossFightActive,
+          onEffect
+        });
+        
+        if (result.shouldRemove) {
+          return null;
+        }
       }
 
       // Return updated projectile
@@ -208,9 +237,13 @@ export const updatePlayerProjectiles = (
 export const updateEnemyProjectiles = (
   projectiles: Projectile[], 
   delta: number, 
-  gameWidth: number, 
-  gameHeight: number
+  player: any,
+  onEffect?: (effect: any) => void
 ): Projectile[] => {
+  // Default viewport dimensions if not provided
+  const viewportWidth = 800; // Default value, adjust if needed
+  const viewportHeight = 600; // Default value, adjust if needed
+
   return projectiles
     .map(projectile => {
       // Update position
@@ -220,12 +253,48 @@ export const updateEnemyProjectiles = (
       // Check if projectile is out of bounds
       const isOutOfBounds = 
         newX < -projectile.width || 
-        newX > gameWidth + projectile.width ||
+        newX > viewportWidth + projectile.width ||
         newY < -projectile.height ||
-        newY > gameHeight + projectile.height;
+        newY > viewportHeight + projectile.height;
 
       if (isOutOfBounds) {
         return null; // Mark for removal
+      }
+
+      // Apply any projectile-specific logic here
+      if (projectile.onUpdate) {
+        const result = projectile.onUpdate({
+          projectile: { ...projectile, x: newX, y: newY },
+          delta,
+          player,
+          onEffect
+        });
+        
+        if (result?.shouldRemove) {
+          return null;
+        }
+      }
+
+      // Check for collision with player if player is provided
+      if (player) {
+        // Simple AABB collision detection
+        if (
+          newX < player.x + player.width &&
+          newX + projectile.width > player.x &&
+          newY < player.y + player.height &&
+          newY + projectile.height > player.y
+        ) {
+          // Trigger on-hit effect if available
+          if (onEffect) {
+            onEffect({
+              type: 'enemy_projectile_hit',
+              x: newX,
+              y: newY,
+              projectileType: projectile.visualType
+            });
+          }
+          return null; // Remove projectile on hit
+        }
       }
 
       // Return updated projectile

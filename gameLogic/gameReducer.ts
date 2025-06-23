@@ -169,10 +169,33 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
 
 
       // Projectiles update
-      newState.playerProjectiles = updatePlayerProjectiles(newState.playerProjectiles, delta, newState.enemies, newState.isBossFightActive, (effectData) => {
-        newState.tempEffectsToAdd.push({ ...effectData, id: '', createdAt: Date.now(), hitEnemyIds: new Set() });
-      });
-      newState.enemyProjectiles = updateEnemyProjectiles(newState.enemyProjectiles, delta, newState.player);
+      newState.playerProjectiles = updatePlayerProjectiles(
+        newState.playerProjectiles, 
+        delta, 
+        newState.enemies, 
+        newState.isBossFightActive, 
+        (effectData: any) => {
+          newState.tempEffectsToAdd.push({ 
+            ...effectData, 
+            id: `effect-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            createdAt: Date.now(), 
+            hitEnemyIds: new Set() 
+          });
+        }
+      );
+      newState.enemyProjectiles = updateEnemyProjectiles(
+        newState.enemyProjectiles, 
+        delta, 
+        newState.player,
+        (effectData: any) => {
+          newState.tempEffectsToAdd.push({
+            ...effectData,
+            id: `effect-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            createdAt: Date.now(),
+            hitEnemyIds: new Set()
+          });
+        }
+      );
 
       // Enemy AI and movement
       const enemyUpdateResult = updateEnemyAIAndMovement(
