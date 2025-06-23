@@ -172,4 +172,70 @@ const MemoizedProjectile = React.memo(ProjectileComponent, (prevProps, nextProps
   );
 });
 
+export const updatePlayerProjectiles = (
+  projectiles: Projectile[], 
+  delta: number, 
+  gameWidth: number, 
+  gameHeight: number
+): Projectile[] => {
+  return projectiles
+    .map(projectile => {
+      // Update position
+      const newX = projectile.x + (projectile.vx || 0) * delta;
+      const newY = projectile.y + (projectile.vy || 0) * delta;
+
+      // Check if projectile is out of bounds
+      const isOutOfBounds = 
+        newX < -projectile.width || 
+        newX > gameWidth + projectile.width ||
+        newY < -projectile.height ||
+        newY > gameHeight + projectile.height;
+
+      if (isOutOfBounds) {
+        return null; // Mark for removal
+      }
+
+      // Return updated projectile
+      return {
+        ...projectile,
+        x: newX,
+        y: newY,
+      };
+    })
+    .filter((p): p is Projectile => p !== null); // Remove nulls and type guard
+};
+
+export const updateEnemyProjectiles = (
+  projectiles: Projectile[], 
+  delta: number, 
+  gameWidth: number, 
+  gameHeight: number
+): Projectile[] => {
+  return projectiles
+    .map(projectile => {
+      // Update position
+      const newX = projectile.x + (projectile.vx || 0) * delta;
+      const newY = projectile.y + (projectile.vy || 0) * delta;
+
+      // Check if projectile is out of bounds
+      const isOutOfBounds = 
+        newX < -projectile.width || 
+        newX > gameWidth + projectile.width ||
+        newY < -projectile.height ||
+        newY > gameHeight + projectile.height;
+
+      if (isOutOfBounds) {
+        return null; // Mark for removal
+      }
+
+      // Return updated projectile
+      return {
+        ...projectile,
+        x: newX,
+        y: newY,
+      };
+    })
+    .filter((p): p is Projectile => p !== null); // Remove nulls and type guard
+};
+
 export default MemoizedProjectile;
