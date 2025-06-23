@@ -6,7 +6,7 @@ import {
   TemporaryEffect, ProjectileVisualType, EnemyType, Platform, KeysPressed, PlayerStats,
   GrassBlade, TemporaryEffectType, EntropicFragment, ActiveDynamicEvent, SoundEffectKey, Point, GameState, GameAction
 } from '../types';
-import { gameReducer, createInitialState } from '../gameReducer';
+import { gameReducer, createInitialState } from '../gameLogic/gameReducer';
 import {
   INITIAL_PLAYER_STATS, UPGRADES, GAME_WIDTH, GAME_HEIGHT, PLAYER_BASE_WIDTH, PLAYER_BASE_HEIGHT,
   PLAYER_INVULNERABILITY_DURATION, STAVES, ACCESSORIES,
